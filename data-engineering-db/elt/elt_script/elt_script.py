@@ -1,36 +1,39 @@
 import subprocess
 import time
 
+
 def wait_for_postgres(host, max_retries=5, delay_seconds=5):
+    """Wait for PostgreSQL to become available."""
     retries = 0
     while retries < max_retries:
         try:
             result = subprocess.run(
                 ["pg_isready", "-h", host], check=True, capture_output=True, text=True)
-            if "accepting connecitons" in result.stdout:
-                print ("Sucessfully connected to Postgres")
+            if "accepting connections" in result.stdout:
+                print("Successfully connected to PostgreSQL!")
                 return True
         except subprocess.CalledProcessError as e:
-            print(f"Error connecting to Postgres: {e}")
+            print(f"Error connecting to PostgreSQL: {e}")
             retries += 1
             print(
                 f"Retrying in {delay_seconds} seconds... (Attempt {retries}/{max_retries})")
             time.sleep(delay_seconds)
-    print("Max retries reached. Exiting")
+    print("Max retries reached. Exiting.")
     return False
+
 
 # Use the function before running the ELT process
 if not wait_for_postgres(host="source_postgres"):
     exit(1)
 
-print("Starting ELT Script...")
+print("Starting ELT script...")
 
 # Configuration for the source PostgreSQL database
 source_config = {
     'dbname': 'source_db',
     'user': 'postgres',
     'password': 'secret',
-     # Use the service name from docker-compose as the hostname
+    # Use the service name from docker-compose as the hostname
     'host': 'source_postgres'
 }
 
@@ -39,6 +42,7 @@ destination_config = {
     'dbname': 'destination_db',
     'user': 'postgres',
     'password': 'secret',
+    # Use the service name from docker-compose as the hostname
     'host': 'destination_postgres'
 }
 
@@ -49,7 +53,7 @@ dump_command = [
     '-U', source_config['user'],
     '-d', source_config['dbname'],
     '-f', 'data_dump.sql',
-    '-w'
+    '-w'  # Do not prompt for password
 ]
 
 # Set the PGPASSWORD environment variable to avoid password prompt
@@ -66,7 +70,6 @@ load_command = [
     '-d', destination_config['dbname'],
     '-a', '-f', 'data_dump.sql'
 ]
-    
 
 # Set the PGPASSWORD environment variable for the destination database
 subprocess_env = dict(PGPASSWORD=destination_config['password'])
@@ -74,4 +77,4 @@ subprocess_env = dict(PGPASSWORD=destination_config['password'])
 # Execute the load command
 subprocess.run(load_command, env=subprocess_env, check=True)
 
-print("Ending ELT Script ...")
+print("Ending ELT script...")
